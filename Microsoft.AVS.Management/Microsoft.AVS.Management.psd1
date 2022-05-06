@@ -12,7 +12,7 @@
     RootModule        = 'Microsoft.AVS.Management.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '3.0.0'
+    ModuleVersion     = '5.0.0'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -30,7 +30,7 @@
     Copyright         = '(c) Microsoft. All rights reserved.'
 
     # Description of the functionality provided by this module
-    Description       = 'Various cmdlets for adminstrator level tasks in managing Azure VMWare Solutions'
+    Description       = 'Various cmdlets for adminstrator level tasks in managing Azure VMware Solutions'
 
     # Minimum version of the PowerShell engine required by this module
     # PowerShellVersion = ''
@@ -52,10 +52,10 @@
 
     # Modules that must be imported into the global environment prior to importing this module
     RequiredModules   = @(
-        @{"ModuleName" = "VMware.vSphere.SsoAdmin"; "ModuleVersion" = "1.3.6" },
-        @{"ModuleName" = "VMware.VimAutomation.Core"; "ModuleVersion" = "12.3.0.17839688" }
-        @{"ModuleName" = "VMware.VimAutomation.Storage"; "ModuleVersion" = "12.3.0.17855705"}
-        @{"ModuleName" = "posh-ssh"; "ModuleVersion" = "3.0.0"}
+        @{"ModuleName" = "VMware.vSphere.SsoAdmin"; "RequiredVersion" = "1.3.5" },
+        @{"ModuleName" = "VMware.VimAutomation.Core"; "RequiredVersion" = "12.5.0.19093566" }
+        @{"ModuleName" = "VMware.VimAutomation.Storage"; "RequiredVersion" = "12.5.0.19106817"}
+        @{"ModuleName" = "posh-ssh"; "RequiredVersion" = "3.0.0"}
     )
 
     # @(@{ModuleName="myDependentModule"; ModuleVersion="2.0"; Guid="cfc45206-1e49-459d-a8ad-5b571ef94857"})
@@ -76,7 +76,7 @@
     # NestedModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-    FunctionsToExport = @("Set-AvsVMStoragePolicy", "Set-ClusterDefaultStoragePolicy", "Get-StoragePolicies", "New-AvsLDAPIdentitySource", "New-AvsLDAPSIdentitySource", "Update-IdentitySourceCertificates", "Get-ExternalIdentitySources", "Remove-ExternalIdentitySources", "Add-GroupToCloudAdmins", "Remove-GroupFromCloudAdmins", "Get-CloudAdminGroups")
+    FunctionsToExport = @("Set-VMStoragePolicy", "Set-LocationStoragePolicy", "Set-ClusterDefaultStoragePolicy", "Get-StoragePolicies", "New-LDAPIdentitySource", "New-LDAPSIdentitySource", "Update-IdentitySourceCertificates", "Get-ExternalIdentitySources", "Remove-ExternalIdentitySources", "Add-GroupToCloudAdmins", "Remove-GroupFromCloudAdmins", "Get-CloudAdminGroups")
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport   = @()

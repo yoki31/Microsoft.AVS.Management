@@ -15,7 +15,8 @@ The 3rd Party script will not have access to administrator password.  Prior to e
 
 - The first login will be done with PowerCLI's [Connect-VIServer](https://developer.vmware.com/docs/powercli/latest/vmware.vimautomation.core/commands/connect-viserver/#Default) cmdlet.  
 - The second login will be done with VMware's [Connect-SsoAdminServer](https://github.com/vmware/PowerCLI-Example-Scripts/tree/master/Modules/VMware.vSphere.SsoAdmin).
-> When publishing the package, please ensure [Microsoft.AVS.Management](https://www.powershellgallery.com/packages/Microsoft.AVS.Management) is a listed [dependency](https://docs.microsoft.com/en-us/nuget/reference/nuspec#dependencies) of the package.
+
+> <b>IMPORTANT:</b> When publishing the package, please ensure [Microsoft.AVS.Management](https://www.powershellgallery.com/packages/Microsoft.AVS.Management) is a listed [dependency](https://docs.microsoft.com/en-us/nuget/reference/nuspec#dependencies) of the package.
 > Please add any additional dependencies as required.
 
 ## Environment
@@ -24,8 +25,13 @@ AVS will expose some standard runtime options via PowerShell variables.  See bel
 
 | Var | Description | Usage example |
 | ------- | ----------- |--|
-| VC_ADDRESS | IP Address of VCenter | |
-| SSH_Sessions | Dictionary of hostname to [Lazy](https://docs.microsoft.com/en-us/dotnet/api/system.lazy-1?view=netcore-2.1) instance of [posh-ssh session](https://github.com/darkoperator/Posh-SSH/blob/master/docs/New-SSHSession.md) | `Invoke-SSHCommand -Command "uname -a" -SSHSession $SSH_Sessions["esx.hostname.fqdn"].Value`
+| `VC_ADDRESS` | IP Address of VCenter | Script authors now can also use `"vc"` - hostname instead of the address |
+| `PersistentSecrets` | Hashtable for keeping secrets across package script executions | `$PersistentSecrets.ManagementAppliancePassword = '***'` |
+| `SSH_Sessions` | Dictionary of hostname to [Lazy](https://docs.microsoft.com/en-us/dotnet/api/system.lazy-1?view=netcore-2.1) instance of [posh-ssh session](https://github.com/darkoperator/Posh-SSH/blob/master/docs/New-SSHSession.md) | `Invoke-SSHCommand -Command "uname -a" -SSHSession $SSH_Sessions["esx.hostname.fqdn"].Value`
+| `SFTP_Sessions` | Dictionary of hostname to [Lazy](https://docs.microsoft.com/en-us/dotnet/api/system.lazy-1?view=netcore-2.1) instance of [posh-ssh sftp session](https://github.com/darkoperator/Posh-SSH/blob/master/docs/New-SFTPSession.md) | `New-SFTPItem -ItemType Directory -Path "/tmp/zzz" -SFTPSession $SSH_Sessions[esx.hostname.fqdn].Value`
+
+> <b>Persistent secrets</b>: 
+The scecrets are kept in a Keyvault, they are isloated on package name basis, shared across all versions of your package and made available for each of your package scripts. Delete a secrets by setting a property to an empty string or `$null`.
 
 The script shall assume the directory it is executed in is temporary and can use it as needed, assuming 25GB is available.  This environment including any files will be torn down after the script execution.
 
@@ -91,7 +97,9 @@ On successful execution a script may assign `NamedOutputs` hashmap/dictionary to
 ```powershell
 $NamedOutputs = @{}
 $NamedOutputs['k1'] = 'v1'
-$NamedOutputs['k2'] = 2
+$NamedOutputs['k2'] = 2 # the value will be converted to string, convert it yourself if need to return complex types
+
+Set-Variable -Name NamedOutputs -Value $NamedOutputs -Scope Global
 
 ```
 
@@ -107,7 +115,7 @@ Spawning child processes is not supported at this time and must be avoided. Plea
 Private AVS package repository will be used to install the modules.
 For the purpose of testing and review consider publishing to [PowerShell Gallery](https://www.powershellgallery.com/), alternatively the package can be made available to us privately.
 
-> IMPORTANT: Vendors must test their package using a Linux [PowerShell container](https://hub.docker.com/_/microsoft-powershell), connecting to their on-prem datacenter.
+> <b>IMPORTANT</b>: Vendors must test their package using a Linux [PowerShell container](https://hub.docker.com/_/microsoft-powershell), connecting to their on-prem datacenter.
 
 ## Versioning and Module manifest
 AVS scripting modules are expected to follow [semver guidelines](https://semver.org/) when publishing a new version. Adhering to the guidelines will ensure that any automation built around the ARM resources representing the commandlets will keep working while benefiting from the patch fixes.
@@ -154,6 +162,7 @@ Any user credentials created for the 3rd party software installation, should be 
 # Suggested script vendor development flow
 For the general script development the vendor should setup an on-prem vCenter. 
 Then using a Linux dev box with PowerShell:
+- Create a non-root user and login as that user
 - Checkout your module repository
 - Edit your module files
 - Start `pwsh`
@@ -166,22 +175,32 @@ Then using a Linux dev box with PowerShell:
 
 This should get the scripts to 99% ready for testing on AVS.
 
-> Note: example of a script that sets up `SSH_Sessions`:
+> Note: example of a script that sets up the context for your dev loop:
 ```ps
+Set-PowerCLIConfiguration -InvalidCertificateAction:Ignore
+$VC_ADDRESS = "10.0.0.2"
+$PersistentSecrets = @{}
+$VC_Credentials = Get-Credential
+Connect-VIServer -Server $VC_ADDRESS -Credential $VC_Credentials
+Connect-SsoAdminServer -Server $VC_ADDRESS -User $VC_Credentials.Username -Password $VC_Credentials.Password -SkipCertificateCheck
 function sshLogin([PSCredential]$c) {
-    $xs = [System.Collections.Generic.Dictionary[string,object]]::new()
+    $sshs = [System.Collections.Generic.Dictionary[string,object]]::new()
+    $sftps = [System.Collections.Generic.Dictionary[string,object]]::new()
     foreach($h in Get-VMHost) {
-        $xs[$h.Name] = [Lazy[object]]::new([System.Func[object]] { New-SSHSession -ComputerName $h.Name -AcceptKey -Credential $c }.GetNewClosure())
+        $sshs[$h.Name] = [Lazy[object]]::new([System.Func[object]] { New-SSHSession -ComputerName $h.Name -AcceptKey -Credential $c }.GetNewClosure())
+        $sftps[$h.Name] = [Lazy[object]]::new([System.Func[object]] { New-SFTPSession -Computer $h.Name -AcceptKey -Credential $c }.GetNewClosure())
     }
+    Set-Variable -Name SSH_Sessions -Value $sshs -Scope Global
+    Set-Variable -Name SFTP_Sessions -Value $sftps -Scope Global
 }
-$c = Get-PSCredential
-$SSH_Sessions = sshLogin $c
+$ESX_Credentials = Get-Credential
+sshLogin $ESX_Credentials
 ```
 
 The final QA cycle would be:
 - Publish the package with `-preview` suffix
 - Get on the Linux jumpbox connected to your SDDC vnet
-- install docker and spin up an instance of this image: mcr.microsoft.com/powershell:7.1.4-alpine-3.12-20210819
+- install docker and spin up an instance of this image: mcr.microsoft.com/powershell:7.2.1-alpine-3.14-20211215
 - In the PowerShell container:
     - Install only your package from PS Gallery – this is to ensure that your package has correctly specified all the dependencies
     - Setup the context
